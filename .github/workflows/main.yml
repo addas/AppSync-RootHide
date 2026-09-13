@@ -1,0 +1,84 @@
+name: Build and Release AppSync
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Debian Package
+    runs-on: ubuntu-22.04
+
+    env:
+      THEOS: ${{ github.workspace }}/../theos
+      VERSION: 116.0h
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            clang \
+            make \
+            git \
+            perl \
+            python3 \
+            dpkg-dev
+
+      - name: Install Theos
+        run: |
+          git clone --recursive \
+            https://github.com/theos/theos.git \
+            "$THEOS"
+
+      - name: Bootstrap Theos
+        run: |
+          "$THEOS/bin/bootstrap.sh" || true
+
+      - name: Build AppSync
+        run: |
+          make package FINALPACKAGE=1
+
+      - name: Show generated packages
+        run: |
+          echo "Generated packages:"
+          ls -lah debs/
+
+      - name: Verify Debian packages
+        run: |
+          shopt -s nullglob
+          packages=(debs/*.deb)
+
+          if [ ${#packages[@]} -eq 0 ]; then
+            echo "::error::No .deb packages were generated."
+            exit 1
+          fi
+
+          for package in "${packages[@]}"; do
+            echo "Checking: $package"
+            dpkg-deb --info "$package"
+          done
+
+      - name: Upload packages as workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: AppSync-${{ env.VERSION }}
+          path: debs/*.deb
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "AppSync Unified ${VERSION}" \
+            --generate-notes \
+            debs/*.deb
