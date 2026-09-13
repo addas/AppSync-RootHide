@@ -24,47 +24,61 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          fetch-depth: 0
 
       - name: Install build dependencies
         run: |
           sudo apt-get update
+
           sudo apt-get install -y \
             build-essential \
             fakeroot \
             rsync \
             curl \
-            perl \
-            zip \
+            wget \
             git \
-            libxml2 \
-            dpkg-dev
+            perl \
+            python3 \
+            dpkg-dev \
+            unzip \
+            xz-utils
 
-      - name: Install Theos
+      - name: Install RootHide Theos
         run: |
           rm -rf "$THEOS"
 
-          mkdir -p "$(dirname "$THEOS")"
+          mkdir -p "$THEOS"
 
-          git clone --recursive \
-            https://github.com/theos/theos.git \
-            "$THEOS"
+          curl -fsSL \
+            https://raw.githubusercontent.com/roothide/theos/master/bin/install-theos \
+            -o install-theos.sh
 
-      - name: Install Theos toolchain and SDKs
+          chmod +x install-theos.sh
+
+          THEOS="$THEOS" bash install-theos.sh
+
+      - name: Install iOS 16.5 SDK
         run: |
-          chmod +x "$THEOS/bin/install-theos"
-          "$THEOS/bin/install-theos"
+          mkdir -p "$THEOS/sdks"
 
-      - name: Verify Theos
+          curl -L \
+            https://github.com/theos/sdks/releases/latest/download/iPhoneOS16.5.sdk.tar.xz \
+            -o /tmp/iPhoneOS16.5.sdk.tar.xz
+
+          tar -xJf /tmp/iPhoneOS16.5.sdk.tar.xz \
+            -C "$THEOS/sdks"
+
+          rm -f /tmp/iPhoneOS16.5.sdk.tar.xz
+
+      - name: Verify RootHide Theos
         run: |
           echo "THEOS=$THEOS"
 
           echo
-          echo "=== Theos ==="
-          ls -lah "$THEOS"
-
-          echo
-          echo "=== iPhone toolchain ==="
-          ls -lah "$THEOS/toolchain/linux/iphone/bin"
+          echo "=== RootHide Theos ==="
+          git -C "$THEOS" remote -v || true
 
           echo
           echo "=== clang ==="
@@ -75,31 +89,26 @@ jobs:
           find "$THEOS/sdks" \
             -maxdepth 1 \
             -type d \
-            -name "*.sdk" \
-            -print
-
-          SDK_COUNT=$(find "$THEOS/sdks" \
-            -maxdepth 1 \
-            -type d \
-            -name "*.sdk" | wc -l)
-
-          if [ "$SDK_COUNT" -eq 0 ]; then
-            echo "::error::No iOS SDKs were installed."
-            exit 1
-          fi
-
-          echo
-          echo "Found $SDK_COUNT iOS SDK(s)."
-
-      - name: Show available SDK versions
-        run: |
-          find "$THEOS/sdks" \
-            -maxdepth 1 \
-            -type d \
             -name "iPhoneOS*.sdk" \
             -printf "%f\n" | sort -V
 
+          echo
+          echo "=== RootHide header ==="
+          find "$THEOS" \
+            -name "roothide.h" \
+            -print
+
+          test -x "$THEOS/toolchain/linux/iphone/bin/clang"
+          test -d "$THEOS/sdks/iPhoneOS16.5.sdk"
+
+          if ! find "$THEOS" -name "roothide.h" -print -quit | grep -q .; then
+            echo "::error::roothide.h was not found in RootHide Theos."
+            exit 1
+          fi
+
       - name: Build AppSync
+        env:
+          THEOS_PACKAGE_SCHEME: roothide
         run: |
           make clean
           make package FINALPACKAGE=1
@@ -107,15 +116,18 @@ jobs:
       - name: Show generated packages
         run: |
           echo "Generated packages:"
-          ls -lah debs/
+          find . -maxdepth 2 -name "*.deb" -print
 
       - name: Verify Debian packages
         run: |
           shopt -s nullglob
+
           packages=(debs/*.deb)
 
           if [ ${#packages[@]} -eq 0 ]; then
             echo "::error::No .deb packages were generated."
+            echo "Searching entire workspace:"
+            find . -name "*.deb" -print
             exit 1
           fi
 
