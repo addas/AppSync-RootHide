@@ -1,9 +1,13 @@
 name: Build and Release AppSync
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "AppSync version"
+        required: true
+        default: "116.0h"
+        type: string
 
 permissions:
   contents: write
@@ -15,7 +19,7 @@ jobs:
 
     env:
       THEOS: ${{ github.workspace }}/../theos
-      VERSION: 116.0h
+      VERSION: ${{ inputs.version }}
 
     steps:
       - name: Checkout
@@ -78,7 +82,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
+          gh release create "v${VERSION}" \
             --title "AppSync Unified ${VERSION}" \
             --generate-notes \
             debs/*.deb
