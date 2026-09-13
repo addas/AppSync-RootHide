@@ -30,39 +30,46 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             build-essential \
-            clang \
-            make \
-            git \
-            curl \
-            wget \
-            perl \
-            python3 \
-            python3-pip \
-            dpkg-dev \
             fakeroot \
-            unzip
+            rsync \
+            curl \
+            perl \
+            zip \
+            git \
+            libxml2 \
+            dpkg-dev
 
       - name: Install Theos
         run: |
+          rm -rf "$THEOS"
+
+          mkdir -p "$(dirname "$THEOS")"
+
           git clone --recursive \
             https://github.com/theos/theos.git \
             "$THEOS"
 
-          "$THEOS/bin/bootstrap.sh"
-
-      - name: Install iOS SDKs
+      - name: Install Theos toolchain and SDKs
         run: |
-          git clone --depth=1 \
-            https://github.com/theos/sdks.git \
-            "$THEOS/sdks"
+          "$THEOS/bin/install-theos"
 
       - name: Verify Theos
         run: |
           echo "THEOS=$THEOS"
 
-          echo "=== Toolchain ==="
+          echo
+          echo "=== Theos ==="
+          ls -lah "$THEOS"
+
+          echo
+          echo "=== iPhone toolchain ==="
           ls -lah "$THEOS/toolchain/linux/iphone/bin"
 
+          echo
+          echo "=== clang ==="
+          "$THEOS/toolchain/linux/iphone/bin/clang" --version
+
+          echo
           echo "=== SDKs ==="
           find "$THEOS/sdks" \
             -maxdepth 1 \
@@ -70,20 +77,26 @@ jobs:
             -name "*.sdk" \
             -print
 
-          echo "=== clang ==="
-          "$THEOS/toolchain/linux/iphone/bin/clang" --version
-
           SDK_COUNT=$(find "$THEOS/sdks" \
             -maxdepth 1 \
             -type d \
             -name "*.sdk" | wc -l)
 
           if [ "$SDK_COUNT" -eq 0 ]; then
-            echo "::error::No iOS SDKs found."
+            echo "::error::No iOS SDKs were installed."
             exit 1
           fi
 
-          echo "Found $SDK_COUNT SDK(s)."
+          echo
+          echo "Found $SDK_COUNT iOS SDK(s)."
+
+      - name: Show available SDK versions
+        run: |
+          find "$THEOS/sdks" \
+            -maxdepth 1 \
+            -type d \
+            -name "iPhoneOS*.sdk" \
+            -printf "%f\n" | sort -V
 
       - name: Build AppSync
         run: |
