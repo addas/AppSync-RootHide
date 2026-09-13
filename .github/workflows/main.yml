@@ -39,45 +39,51 @@ jobs:
             python3 \
             python3-pip \
             dpkg-dev \
-            ldid \
             fakeroot \
             unzip
 
       - name: Install Theos
         run: |
-          git clone --recursive https://github.com/theos/theos.git "$THEOS"
+          git clone --recursive \
+            https://github.com/theos/theos.git \
+            "$THEOS"
 
-          # Install Theos toolchain
           "$THEOS/bin/bootstrap.sh"
 
-      - name: Install iOS SDK
+      - name: Install iOS SDKs
         run: |
-          git clone --depth=1 https://github.com/theos/sdks.git "$THEOS/sdks"
+          git clone --depth=1 \
+            https://github.com/theos/sdks.git \
+            "$THEOS/sdks"
 
-      - name: Verify Theos installation
+      - name: Verify Theos
         run: |
           echo "THEOS=$THEOS"
 
-          echo "Checking clang:"
-          ls -lah "$THEOS/toolchain/linux/iphone/bin/" || true
+          echo "=== Toolchain ==="
+          ls -lah "$THEOS/toolchain/linux/iphone/bin"
 
-          echo "Checking SDKs:"
-          find "$THEOS/sdks" -maxdepth 1 -type d -name "*.sdk" -print
+          echo "=== SDKs ==="
+          find "$THEOS/sdks" \
+            -maxdepth 1 \
+            -type d \
+            -name "*.sdk" \
+            -print
 
-          echo "Checking clang executable:"
-          test -x "$THEOS/toolchain/linux/iphone/bin/clang"
+          echo "=== clang ==="
+          "$THEOS/toolchain/linux/iphone/bin/clang" --version
 
-          echo "Checking SDK directory:"
-          test -d "$THEOS/sdks"
-
-          SDK_COUNT=$(find "$THEOS/sdks" -maxdepth 1 -type d -name "*.sdk" | wc -l)
+          SDK_COUNT=$(find "$THEOS/sdks" \
+            -maxdepth 1 \
+            -type d \
+            -name "*.sdk" | wc -l)
 
           if [ "$SDK_COUNT" -eq 0 ]; then
-            echo "::error::No iOS SDKs were installed."
+            echo "::error::No iOS SDKs found."
             exit 1
           fi
 
-          echo "Found $SDK_COUNT iOS SDK(s)."
+          echo "Found $SDK_COUNT SDK(s)."
 
       - name: Build AppSync
         run: |
