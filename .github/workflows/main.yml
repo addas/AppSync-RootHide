@@ -51,6 +51,7 @@ jobs:
 
       - name: Install Theos toolchain and SDKs
         run: |
+          chmod +x "$THEOS/bin/install-theos"
           "$THEOS/bin/install-theos"
 
       - name: Verify Theos
